@@ -17,6 +17,13 @@ import (
 	"fmt"
 	"log"
 	"net"
+
+	"github.com/veandco/go-sdl2/sdl"
+)
+
+const (
+	width  = 640
+	height = 480
 )
 
 func handler(connection net.Conn) {
@@ -44,11 +51,36 @@ func server(listener net.Listener) {
 	}
 }
 
+func gfx(command chan string) {
+	if err := sdl.Init(sdl.INIT_VIDEO); err != nil {
+		panic(err)
+	}
+	defer sdl.Quit()
+
+	window, err := sdl.CreateWindow("Example #1", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
+		width, height, sdl.WINDOW_SHOWN)
+	if err != nil {
+		panic(err)
+	}
+	defer window.Destroy()
+
+	primarySurface, err := window.GetSurface()
+	if err != nil {
+		panic(err)
+	}
+	primarySurface.FillRect(nil, sdl.MapRGB(primarySurface.Format, 192, 255, 192))
+	window.UpdateSurface()
+	<-command
+}
+
 func main() {
 	l, err := net.Listen("tcp", "localhost:1234")
 	if err != nil {
 		log.Fatal("Can't open the port!", err)
 	}
 	defer l.Close()
+	command := make(chan string)
+
+	go gfx(command)
 	server(l)
 }
