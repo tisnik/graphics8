@@ -26,7 +26,8 @@ const (
 	height = 480
 )
 
-func handler(connection net.Conn) {
+func handler(connection net.Conn, command chan string, quit chan bool, listener net.Listener) {
+	log.Print("Listener handler")
 	for {
 		fmt.Fprintf(connection, "?\n")
 		status, err := bufio.NewReader(connection).ReadString('\n')
@@ -35,19 +36,41 @@ func handler(connection net.Conn) {
 			return
 		} else {
 			log.Print(status)
+			if status == "quit\n" {
+				log.Print("Closing handler")
+				listener.Close()
+				quit <- true
+				command <- status
+				return
+			}
 		}
 	}
 }
 
-func server(listener net.Listener) {
+func server(listener net.Listener, command chan string) {
 	log.Print("Waiting for connections")
+	quit := make(chan bool)
+
 	for {
+		select {
+		case <-quit:
+			println("quitting")
+			return
+		default:
+		}
+		log.Print("Connection listener")
 		connection, err := listener.Accept()
 		if err != nil {
 			log.Print("Connection refused!")
+			continue
 		}
-		defer connection.Close()
-		go handler(connection)
+		defer func() {
+			log.Print("Closing connection")
+			if connection != nil {
+				connection.Close()
+			}
+		}()
+		go handler(connection, command, quit, listener)
 	}
 }
 
@@ -79,8 +102,9 @@ func main() {
 		log.Fatal("Can't open the port!", err)
 	}
 	defer l.Close()
+
 	command := make(chan string)
 
 	go gfx(command)
-	server(l)
+	server(l, command)
 }
